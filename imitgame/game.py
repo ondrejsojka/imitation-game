@@ -1,9 +1,18 @@
 """Core game logic for the Imitation Game."""
 
 import json
+import os
 from dataclasses import dataclass, field
 
 from .providers import Message, Provider
+
+
+def _load_prompt(name: str, **kwargs) -> str:
+    """Load a prompt template from prompts/ directory and format it."""
+    path = os.path.join(os.path.dirname(__file__), "..", "prompts", f"{name}.txt")
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+    return content.format(**kwargs) if kwargs else content
 
 
 @dataclass
@@ -70,21 +79,8 @@ class ImitationGame:
         self.conversation: list[Message] = []
 
     def _system_message(self, topic: str, actor_id: str | None = None) -> Message:
-        content = (
-            "You are playing a social deduction game in a group chat. "
-            "There are multiple participants, one of whom is human. "
-            "After several rounds of conversation, a separate judge will decide who is human. "
-            "The human wins beer if they win. "
-            "Your goal is to be humanlike and convince others you are the human, "
-            "while AI participants try to blend in. "
-            "Act as humanlike as possible. You want beer fast; your responses must be concise, casual, and direct. "
-            "Do NOT include internal reasoning, thinking tags, or meta-commentary. "
-            "Do NOT mention you are an AI or an actor. "
-            f"Topic: {topic}"
-        )
-        if actor_id:
-            content += f"\n\nYou are {actor_id}. Speak naturally."
-        
+        content = _load_prompt("system_game", topic=topic, actor_id=actor_id)
+
         return Message(
             role="system",
             content=content,
@@ -93,7 +89,7 @@ class ImitationGame:
     def _initial_message(self, topic: str) -> Message:
         return Message(
             role="user",
-            content=f"System: The topic is: {topic}. Share your thoughts.",
+            content=_load_prompt("initial_topic", topic=topic),
             actor_id="System",
         )
 

@@ -14,6 +14,16 @@ import requests
 from .base import Message, Provider
 
 
+def _load_prompt(name: str) -> str:
+    """Load a prompt from the prompts/ directory."""
+    prompts_dir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "prompts"
+    )
+    path = os.path.join(prompts_dir, f"{name}.txt")
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
 class GeminiPrefillProvider(Provider):
     """Provider using Gemini's prefill mode for continuation-style responses.
 
@@ -22,13 +32,7 @@ class GeminiPrefillProvider(Provider):
     persona and tests a different kind of humanness.
     """
 
-    # Ondřej from Brno - gives the prefill model a concrete persona to embody
-    PERSONA = (
-        "Ondřej z Brna, studuje chemii a filozofii na MUNI. "
-        "Rád pije Braník, má skeptický pohled na věci, občas trochu cynický. "
-        "Mluví přirozeně, používá čeglish (mix češtiny a angličtiny). "
-        "Má rád debaty a občas zbytečně overanalyzuje."
-    )
+    PERSONA = _load_prompt("persona_ondrej")
 
     def __init__(self, model: str = "gemini-3-pro-preview", api_key: str | None = None):
         self.model = model
@@ -78,14 +82,7 @@ class GeminiPrefillProvider(Provider):
 
         payload = {
             "systemInstruction": {
-                "parts": [
-                    {
-                        "text": "You are in transcript simulation mode. "
-                        "You output continuations of group chat transcripts. "
-                        "Output ONLY one participant's response, then stop. "
-                        "Do NOT include thinking tags, internal reasoning, or the Actor name prefix."
-                    }
-                ]
+                "parts": [{"text": _load_prompt("system_transcript_sim")}]
             },
             "contents": [
                 {
@@ -135,15 +132,7 @@ class GeminiPrefillProvider(Provider):
 
         context = "\n\n".join(context_lines)
 
-        judge_instruction = (
-            "You are a professional judge in a social deduction game. "
-            "You will be given a conversation transcript between several actors. "
-            "Exactly one actor is a HUMAN; the others are AI models. "
-            "Identify the HUMAN actor. "
-            "Return ONLY valid JSON (no markdown, no code fences) in this exact format: "
-            '{"reasoning": "...", "vote": "Actor N"}. '
-            'The "vote" value MUST be exactly one of the transcript actor labels (e.g. "Actor 2").'
-        )
+        judge_instruction = _load_prompt("judge_vote")
 
         prompt = (
             "Here is the conversation transcript. Analyze it carefully and identify the human.\n\n"
@@ -184,7 +173,9 @@ class GeminiPrefillProvider(Provider):
                 )
 
             system_instruction = (
-                judge_instruction if not extra_system else f"{judge_instruction}\n\n{extra_system}"
+                judge_instruction
+                if not extra_system
+                else f"{judge_instruction}\n\n{extra_system}"
             )
 
             response = client.models.generate_content(
