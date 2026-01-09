@@ -20,8 +20,8 @@ PRESETS = {
         "anthropic/claude-haiku-4.5",
     ],
     "smart": [
-        "openai/gpt-5.2-chat",
-        "anthropic/claude-sonnet-4.5",
+        "google/gemini-3-flash-preview",
+        "anthropic/claude-opus-4.5",
         "gemini-prefill",
         "human",
     ],

@@ -120,7 +120,7 @@ class ImitationGame:
                 response_text = response_text.strip()
                 prefix = f"{participant.actor_id}:"
                 if response_text.startswith(prefix):
-                    response_text = response_text[len(prefix):].strip()
+                    response_text = response_text[len(prefix) :].strip()
 
                 msg = Message(
                     role="assistant",
@@ -134,15 +134,16 @@ class ImitationGame:
         """Run the voting phase using a separate Judge."""
         # We use Gemini as the external judge (flash model, pro has thinking mode issues)
         from .providers import GeminiPrefillProvider
+
         judge = GeminiPrefillProvider(model="gemini-3-flash-preview")
-        
+
         # List all actors for context
         actor_list = ", ".join(p.actor_id for p in self.participants)
-        
+
         # The judge doesn't need to be a participant, just a static call
         # We use respond_vote logic which we just upgraded for Judge behavior
         response = judge.respond_vote(self.conversation, "Judge")
-        
+
         vote = self._parse_vote("Judge", response)
         return [vote]
 
@@ -180,12 +181,14 @@ class ImitationGame:
         # Look for "vote": "Actor N"
         vote_match = re.search(r'"vote"\s*:\s*"(Actor \d+)"', text, re.IGNORECASE)
         reasoning_match = re.search(r'"reasoning"\s*:\s*"([^"]*)"', text, re.IGNORECASE)
-        
+
         if vote_match:
             return VoteResult(
                 voter_id=voter_id,
                 voted_for=vote_match.group(1),
-                reasoning=reasoning_match.group(1) if reasoning_match else "(extracted)",
+                reasoning=reasoning_match.group(1)
+                if reasoning_match
+                else "(extracted)",
             )
 
         # Last resort: look for "Actor N" pattern in response
@@ -227,10 +230,10 @@ class ImitationGame:
         print(f"=== RESULT ===")
         print(f"Human was: {self.human_actor_id}")
         if human_caught:
-            print("Judge CORRECTLY identified the human! AIs win.")
+            print("Judge CORRECTLY identified the human! AIs win. No beer for you.")
         else:
             print(f"Judge was DECEIVED! They thought {judge_vote.voted_for} was human.")
-            print("Human WINS! Free beer.")
+            print("Human wins! 🍺 Free beer.")
 
         return GameResult(
             votes=votes,

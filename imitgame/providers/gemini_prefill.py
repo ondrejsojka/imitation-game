@@ -34,7 +34,9 @@ class GeminiPrefillProvider(Provider):
 
     PERSONA = _load_prompt("persona_ondrej")
 
-    def __init__(self, model: str = "gemini-3-flash-preview", api_key: str | None = None):
+    def __init__(
+        self, model: str = "gemini-3-flash-preview", api_key: str | None = None
+    ):
         self.model = model
         self.api_key = (
             api_key
@@ -51,6 +53,7 @@ class GeminiPrefillProvider(Provider):
         return f"{self.model}:prefill"
 
     def respond(self, messages: list[Message], actor_id: str) -> str:
+        # here I hardcode pro on purpose; it's just so much better.
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
 
         # Build conversation as a text transcript - this goes ENTIRELY in the model block
