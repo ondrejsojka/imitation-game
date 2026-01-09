@@ -37,14 +37,6 @@ class OpenRouterProvider(Provider):
         for msg in messages:
             openai_messages.append({"role": msg.role, "content": msg.content})
 
-        # Add actor context
-        openai_messages.append(
-            {
-                "role": "system",
-                "content": f"You are {actor_id}. Respond naturally, don't repeat your identifier.",
-            }
-        )
-
         response = self.client.chat.completions.create(
             model=self.model, messages=openai_messages, max_tokens=512
         )

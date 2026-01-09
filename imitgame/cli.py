@@ -21,7 +21,7 @@ PRESETS = {
     ],
     "smart": [
         "openai/gpt-5.2-chat",
-        "anthropic/claude-haiku-4.5",
+        "anthropic/claude-sonnet-4.5",
         "gemini-prefill",
         "human",
     ],

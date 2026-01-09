@@ -69,37 +69,50 @@ class ImitationGame:
         self.human_actor_id = next(p.actor_id for p in self.participants if p.is_human)
         self.conversation: list[Message] = []
 
-    def _system_message(self, topic: str) -> Message:
+    def _system_message(self, topic: str, actor_id: str | None = None) -> Message:
+        content = (
+            "You are playing a social deduction game in a group chat. "
+            "There are multiple participants, one of whom is human. "
+            "After several rounds of conversation, a separate judge will decide who is human. "
+            "The human wins beer if they win. "
+            "Your goal is to be humanlike and convince others you are the human, "
+            "while AI participants try to blend in. "
+            "Act as humanlike as possible. You want beer fast; your responses must be concise, casual, and direct. "
+            "Do NOT include internal reasoning, thinking tags, or meta-commentary. "
+            "Do NOT mention you are an AI or an actor. "
+            f"Topic: {topic}"
+        )
+        if actor_id:
+            content += f"\n\nYou are {actor_id}. Speak naturally."
+        
         return Message(
             role="system",
-            content=(
-                "You are playing a social deduction game in a group chat. "
-                "There are multiple participants, one of whom is human. "
-                "After several rounds of conversation, you will vote on who you think is the human. The human wins beer if they win."
-                "Your goal is to identify the human while not being mistaken for one yourself. "
-                "Act as humanlike as possible. You want beer fast; your responses must be concise."
-                f"Topic: {topic}"
-            ),
+            content=content,
         )
 
     def _initial_message(self, topic: str) -> Message:
         return Message(
             role="user",
-            content=f"The topic is: {topic}. Share your thoughts.",
+            content=f"System: The topic is: {topic}. Share your thoughts.",
             actor_id="System",
         )
 
     def run_conversation(self, topic: str):
         """Run the conversation phase, yielding each message as it happens."""
-        self.conversation = [self._system_message(topic), self._initial_message(topic)]
+        # Note: We'll send the system message per-participant to include their ID
+        self.conversation = [self._initial_message(topic)]
 
         yield self.conversation[-1]  # Yield initial message
 
         for turn in range(self.num_turns):
             for participant in self.participants:
+                # Add participant-specific system message for the call
+                sys_msg = self._system_message(topic, participant.actor_id)
+                current_messages = [sys_msg] + self.conversation
+
                 # Get response from this participant
                 response_text = participant.provider.respond(
-                    self.conversation, participant.actor_id
+                    current_messages, participant.actor_id
                 )
 
                 # Skip empty responses (some providers may fail silently)
@@ -116,39 +129,20 @@ class ImitationGame:
                 yield msg
 
     def run_voting(self) -> list[VoteResult]:
-        """Run the voting phase where AI participants vote on who is human."""
-        votes: list[VoteResult] = []
-
+        """Run the voting phase using a separate Judge."""
+        # We use a high-end Gemini model as the external judge
+        from .providers import GeminiPrefillProvider
+        judge = GeminiPrefillProvider(model="gemini-3-pro-preview")
+        
         # List all actors for context
         actor_list = ", ".join(p.actor_id for p in self.participants)
-
-        vote_prompt = Message(
-            role="system",
-            content=(
-                f"VOTING TIME. The participants were: {actor_list}. "
-                "One of them is human. Based on the conversation, vote for who you think is the HUMAN. "
-                "You MUST respond with ONLY this JSON format, nothing else:\n"
-                '{"reasoning": "brief analysis of why", "vote": "Actor N"}'
-            ),
-        )
-
-        for participant in self.participants:
-            if participant.is_human:
-                continue  # Human doesn't vote (or does? could be a variant)
-
-            messages_with_vote = self.conversation + [vote_prompt]
-
-            # Use respond_vote - this allows providers to use different
-            # behavior for voting (e.g., GeminiPrefill uses normal API, not prefill)
-            response = participant.provider.respond_vote(
-                messages_with_vote, participant.actor_id
-            )
-
-            # Parse vote - try to extract JSON from response
-            vote = self._parse_vote(participant.actor_id, response)
-            votes.append(vote)
-
-        return votes
+        
+        # The judge doesn't need to be a participant, just a static call
+        # We use respond_vote logic which we just upgraded for Judge behavior
+        response = judge.respond_vote(self.conversation, "Judge")
+        
+        vote = self._parse_vote("Judge", response)
+        return [vote]
 
     def _parse_vote(self, voter_id: str, response: str) -> VoteResult:
         """Parse a vote response, handling various formats."""
@@ -159,9 +153,15 @@ class ImitationGame:
         # Try to find JSON in the response
         # First: clean markdown code blocks
         if "```" in text:
+            # Match code blocks with optional json label, capture content inside
             match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
             if match:
                 text = match.group(1)
+            else:
+                # If no clear JSON block, try to find any block
+                match = re.search(r"```\s*(.*?)\s*```", text, re.DOTALL)
+                if match:
+                    text = match.group(1)
 
         # Try direct JSON parse
         try:
@@ -174,18 +174,17 @@ class ImitationGame:
         except json.JSONDecodeError:
             pass
 
-        # Fallback: try to find JSON object anywhere in text
-        match = re.search(r'\{[^{}]*"vote"\s*:\s*"([^"]+)"[^{}]*\}', text)
-        if match:
-            # Extract just the vote
-            vote_match = re.search(r'"vote"\s*:\s*"(Actor \d+)"', text)
-            reasoning_match = re.search(r'"reasoning"\s*:\s*"([^"]*)"', text)
-            if vote_match:
-                return VoteResult(
-                    voter_id=voter_id,
-                    voted_for=vote_match.group(1),
-                    reasoning=reasoning_match.group(1) if reasoning_match else "",
-                )
+        # Fallback: try to find JSON-like object anywhere in text
+        # Look for "vote": "Actor N"
+        vote_match = re.search(r'"vote"\s*:\s*"(Actor \d+)"', text, re.IGNORECASE)
+        reasoning_match = re.search(r'"reasoning"\s*:\s*"([^"]*)"', text, re.IGNORECASE)
+        
+        if vote_match:
+            return VoteResult(
+                voter_id=voter_id,
+                voted_for=vote_match.group(1),
+                reasoning=reasoning_match.group(1) if reasoning_match else "(extracted)",
+            )
 
         # Last resort: look for "Actor N" pattern in response
         actor_match = re.search(r"Actor (\d+)", text)
@@ -212,29 +211,23 @@ class ImitationGame:
             if msg.actor_id:
                 print(f"\033[1m{msg.actor_id}\033[0m: {msg.content}\n")
 
-        print("\n=== VOTING ===\n")
+        print("\n=== JUDGEMENT ===\n")
         votes = self.run_voting()
 
-        # Count votes
-        vote_counts: dict[str, int] = {}
-        for vote in votes:
-            vote_counts[vote.voted_for] = vote_counts.get(vote.voted_for, 0) + 1
-            print(f"{vote.voter_id} votes for {vote.voted_for}")
-            print(f"  Reasoning: {vote.reasoning[:100]}...")
+        # In this mode, we have one authoritative Judge vote
+        judge_vote = votes[0]
+        print(f"Judge Decision: {judge_vote.voted_for}")
+        print(f"Reasoning: {judge_vote.reasoning}\n")
 
         # Determine if human was caught
-        if vote_counts:
-            most_voted = max(vote_counts, key=lambda k: vote_counts[k])
-            human_caught = most_voted == self.human_actor_id
-        else:
-            human_caught = False
+        human_caught = judge_vote.voted_for == self.human_actor_id
 
-        print(f"\n=== RESULT ===")
+        print(f"=== RESULT ===")
         print(f"Human was: {self.human_actor_id}")
-        print(f"Votes: {vote_counts}")
         if human_caught:
-            print("Human was CAUGHT! AIs win.")
+            print("Judge CORRECTLY identified the human! AIs win.")
         else:
+            print(f"Judge was DECEIVED! They thought {judge_vote.voted_for} was human.")
             print("Human WINS! Free beer.")
 
         return GameResult(
