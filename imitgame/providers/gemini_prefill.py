@@ -21,7 +21,7 @@ class GeminiPrefillProvider(Provider):
     """
 
     def __init__(
-        self, model: str = "gemini-2.5-flash-preview-05-20", api_key: str | None = None
+        self, model: str = "gemini-3-flash-preview", api_key: str | None = None
     ):
         self.model = model
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")

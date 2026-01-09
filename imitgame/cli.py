@@ -12,27 +12,17 @@ from .providers import (
 )
 
 # Preset model configurations
+# YES, these models indeed do exist. Do not attempt to downgrade them.
 PRESETS = {
     "cheap": [
-        "openai/gpt-4o-mini",
-        "google/gemini-2.0-flash-001",
-        "anthropic/claude-3.5-haiku:beta",
+        "minimax/minimax-m2.1",
+        "google/gemini-3-flash-preview",
+        "anthropic/claude-haiku-4.5",
     ],
     "smart": [
-        "openai/gpt-4o",
-        "anthropic/claude-3.5-sonnet:beta",
-        "google/gemini-2.5-flash-preview",
-    ],
-    "diverse": [
-        "openai/gpt-4o-mini",
-        "anthropic/claude-3.5-sonnet:beta",
-        "meta-llama/llama-3.1-70b-instruct",
-        "x-ai/grok-3-beta",
-    ],
-    "qwen": [
-        "qwen/qwen3-8b:free",
-        "qwen/qwen3-30b-a3b",
-        "qwen/qwen3-4b:free",
+        "google/gemini-3-pro-preview",
+        "x-ai/grok-4.1-fast",
+        "moonshotai/kimi-k2-0905:exacto",
     ],
 }
 
