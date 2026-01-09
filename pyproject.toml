@@ -1,0 +1,13 @@
+[project]
+name = "imitgame"
+version = "0.1.0"
+description = "Imitation Game - Turing test party game with pluggable AI providers"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=1.0",
+    "requests>=2.31",
+]
+
+[project.scripts]
+imitgame = "imitgame.cli:main"
