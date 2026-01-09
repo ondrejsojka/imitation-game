@@ -54,7 +54,7 @@ class GeminiPrefillProvider(Provider):
 
     def respond(self, messages: list[Message], actor_id: str) -> str:
         # here I hardcode pro on purpose; it's just so much better.
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key={self.api_key}"
 
         # Build conversation as a text transcript - this goes ENTIRELY in the model block
         # The trick: model "continues" the transcript as if predicting text, not responding

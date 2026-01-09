@@ -17,7 +17,7 @@ PRESETS = {
     "cheap": [
         "minimax/minimax-m2.1",
         "google/gemini-3-flash-preview",
-        "anthropic/claude-haiku-4.5",
+        "moonshotai/kimi-k2-0905:exacto",
     ],
     "smart": [
         "google/gemini-3-flash-preview",

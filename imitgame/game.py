@@ -230,10 +230,10 @@ class ImitationGame:
         print(f"=== RESULT ===")
         print(f"Human was: {self.human_actor_id}")
         if human_caught:
-            print("Judge CORRECTLY identified the human! AIs win. No beer for you.")
+            print("Judge CORRECTLY identified the human! 🍺 You win! Free beer.")
         else:
             print(f"Judge was DECEIVED! They thought {judge_vote.voted_for} was human.")
-            print("Human wins! 🍺 Free beer.")
+            print("You lose! AI was more convincing than you. No beer.")
 
         return GameResult(
             votes=votes,
