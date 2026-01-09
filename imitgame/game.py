@@ -180,7 +180,8 @@ class ImitationGame:
         # Fallback: try to find JSON-like object anywhere in text
         # Look for "vote": "Actor N"
         vote_match = re.search(r'"vote"\s*:\s*"(Actor \d+)"', text, re.IGNORECASE)
-        reasoning_match = re.search(r'"reasoning"\s*:\s*"([^"]*)"', text, re.IGNORECASE)
+        # For reasoning, match everything until the closing pattern (handles quotes inside)
+        reasoning_match = re.search(r'"reasoning"\s*:\s*"((?:[^"\\]|\\.)*)"', text, re.IGNORECASE)
 
         if vote_match:
             return VoteResult(
@@ -197,7 +198,7 @@ class ImitationGame:
             return VoteResult(
                 voter_id=voter_id,
                 voted_for=f"Actor {actor_match.group(1)}",
-                reasoning=f"(extracted from: {text[:100]}...)",
+                reasoning=f"(raw response: {text})",
             )
 
         print(f"Failed to parse vote from {voter_id}: {response[:200]}")

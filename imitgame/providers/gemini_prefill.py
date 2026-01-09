@@ -187,8 +187,7 @@ class GeminiPrefillProvider(Provider):
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
                     response_mime_type="application/json",
-                    max_output_tokens=1024,
-                    temperature=0.2,
+                    max_output_tokens=4096,
                 ),
             )
 
