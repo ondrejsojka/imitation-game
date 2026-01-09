@@ -1,12 +1,12 @@
 """Provider implementations."""
 
-from .base import Provider, Message, HumanProvider
-from .openrouter import OpenRouterProvider
+from .base import HumanProvider, Message, Provider
 from .gemini_prefill import GeminiPrefillProvider
+from .openrouter import OpenRouterProvider
 
 __all__ = [
     "Provider",
-    "Message", 
+    "Message",
     "HumanProvider",
     "OpenRouterProvider",
     "GeminiPrefillProvider",
