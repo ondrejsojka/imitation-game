@@ -86,8 +86,7 @@ PRESETS = {
         "anthropic/claude-haiku-4.5",
     ],
     "smart": [
-        "google/gemini-3-pro-preview",
-        "x-ai/grok-4.1-fast",
+        "..." # see cli.py
         "gemini-prefill",
         "human",
     ],

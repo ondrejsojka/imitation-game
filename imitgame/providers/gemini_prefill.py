@@ -34,7 +34,7 @@ class GeminiPrefillProvider(Provider):
 
     PERSONA = _load_prompt("persona_ondrej")
 
-    def __init__(self, model: str = "gemini-3-pro-preview", api_key: str | None = None):
+    def __init__(self, model: str = "gemini-3-flash-preview", api_key: str | None = None):
         self.model = model
         self.api_key = (
             api_key

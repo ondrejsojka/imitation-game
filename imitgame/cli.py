@@ -94,7 +94,7 @@ def cmd_demo(args):
         """Fake human for demo mode - just uses an AI."""
 
         def __init__(self):
-            self._inner = OpenRouterProvider(model="openai/gpt-4o-mini")
+            self._inner = OpenRouterProvider(model="openai/gpt-5.1-chat")
 
         @property
         def name(self) -> str:

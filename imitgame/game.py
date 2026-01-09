@@ -116,6 +116,12 @@ class ImitationGame:
                     print(f"[{participant.actor_id} returned empty response, skipping]")
                     continue
 
+                # Strip actor prefix if model echoed it (common with multi-party format)
+                response_text = response_text.strip()
+                prefix = f"{participant.actor_id}:"
+                if response_text.startswith(prefix):
+                    response_text = response_text[len(prefix):].strip()
+
                 msg = Message(
                     role="assistant",
                     content=response_text,
@@ -126,9 +132,9 @@ class ImitationGame:
 
     def run_voting(self) -> list[VoteResult]:
         """Run the voting phase using a separate Judge."""
-        # We use a high-end Gemini model as the external judge
+        # We use Gemini as the external judge (flash model, pro has thinking mode issues)
         from .providers import GeminiPrefillProvider
-        judge = GeminiPrefillProvider(model="gemini-3-pro-preview")
+        judge = GeminiPrefillProvider(model="gemini-3-flash-preview")
         
         # List all actors for context
         actor_list = ", ".join(p.actor_id for p in self.participants)

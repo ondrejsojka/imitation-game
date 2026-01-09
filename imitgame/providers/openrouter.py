@@ -32,10 +32,22 @@ class OpenRouterProvider(Provider):
 
     def respond(self, messages: list[Message], actor_id: str) -> str:
         # Convert to OpenAI format
+        # Include actor_id in content for multi-party chat simulation
+        # (otherwise models see assistant messages and try to continue them)
         openai_messages = []
 
         for msg in messages:
-            openai_messages.append({"role": msg.role, "content": msg.content})
+            if msg.role == "system":
+                openai_messages.append({"role": "system", "content": msg.content})
+            elif msg.actor_id:
+                # Multi-party: prefix with actor name, use user role
+                # This prevents models from "continuing" other actors' messages
+                openai_messages.append({
+                    "role": "user",
+                    "content": f"{msg.actor_id}: {msg.content}"
+                })
+            else:
+                openai_messages.append({"role": msg.role, "content": msg.content})
 
         response = self.client.chat.completions.create(
             model=self.model, messages=openai_messages, max_tokens=512
