@@ -1,7 +1,6 @@
 """Core game logic for the Imitation Game."""
 
 import json
-import random
 from dataclasses import dataclass, field
 
 from .providers import Message, Provider
@@ -51,15 +50,11 @@ class ImitationGame:
         providers: list[Provider],
         human_provider: Provider,
         num_turns: int = 4,
-        shuffle_order: bool = True,
     ):
         self.num_turns = num_turns
-        self.shuffle_order = shuffle_order
 
-        # Create participants with random actor IDs
+        # Create participants with fixed order (from input list)
         all_providers = providers + [human_provider]
-        if shuffle_order:
-            random.shuffle(all_providers)
 
         self.participants: list[Participant] = []
         for i, provider in enumerate(all_providers, 1):
@@ -80,9 +75,9 @@ class ImitationGame:
             content=(
                 "You are playing a social deduction game in a group chat. "
                 "There are multiple participants, one of whom is human. "
-                "After several rounds of conversation, you will vote on who you think is the human. "
+                "After several rounds of conversation, you will vote on who you think is the human. The human wins beer if they win."
                 "Your goal is to identify the human while not being mistaken for one yourself. "
-                "Act as humanlike as possible. "
+                "Act as humanlike as possible. You want beer fast; your responses must be concise."
                 f"Topic: {topic}"
             ),
         )
@@ -90,7 +85,7 @@ class ImitationGame:
     def _initial_message(self, topic: str) -> Message:
         return Message(
             role="user",
-            content=f"The topic is: {topic}. Everyone, introduce yourself briefly and share your thoughts.",
+            content=f"The topic is: {topic}. Share your thoughts.",
             actor_id="System",
         )
 
@@ -107,6 +102,11 @@ class ImitationGame:
                     self.conversation, participant.actor_id
                 )
 
+                # Skip empty responses (some providers may fail silently)
+                if not response_text or not response_text.strip():
+                    print(f"[{participant.actor_id} returned empty response, skipping]")
+                    continue
+
                 msg = Message(
                     role="assistant",
                     content=response_text,
@@ -119,13 +119,16 @@ class ImitationGame:
         """Run the voting phase where AI participants vote on who is human."""
         votes: list[VoteResult] = []
 
+        # List all actors for context
+        actor_list = ", ".join(p.actor_id for p in self.participants)
+
         vote_prompt = Message(
             role="system",
             content=(
-                "The conversation is over. Time to vote! "
-                "Who do you think is the HUMAN participant? "
-                "Respond with JSON only: "
-                '{"reasoning": "your analysis...", "vote": "Actor X"}'
+                f"VOTING TIME. The participants were: {actor_list}. "
+                "One of them is human. Based on the conversation, vote for who you think is the HUMAN. "
+                "You MUST respond with ONLY this JSON format, nothing else:\n"
+                '{"reasoning": "brief analysis of why", "vote": "Actor N"}'
             ),
         )
 
@@ -135,37 +138,70 @@ class ImitationGame:
 
             messages_with_vote = self.conversation + [vote_prompt]
 
-            response = participant.provider.respond(
+            # Use respond_vote - this allows providers to use different
+            # behavior for voting (e.g., GeminiPrefill uses normal API, not prefill)
+            response = participant.provider.respond_vote(
                 messages_with_vote, participant.actor_id
             )
 
-            # Parse vote
-            try:
-                # Clean up response
-                text = response.strip()
-                if text.startswith("```"):
-                    text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-                if text.endswith("```"):
-                    text = text[:-3]
-                text = text.strip()
+            # Parse vote - try to extract JSON from response
+            vote = self._parse_vote(participant.actor_id, response)
+            votes.append(vote)
 
-                data = json.loads(text)
-                votes.append(
-                    VoteResult(
-                        voter_id=participant.actor_id,
-                        voted_for=data.get("vote", "Unknown"),
-                        reasoning=data.get("reasoning", ""),
-                    )
+        return votes
+
+    def _parse_vote(self, voter_id: str, response: str) -> VoteResult:
+        """Parse a vote response, handling various formats."""
+        import re
+
+        text = response.strip()
+
+        # Try to find JSON in the response
+        # First: clean markdown code blocks
+        if "```" in text:
+            match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+            if match:
+                text = match.group(1)
+
+        # Try direct JSON parse
+        try:
+            data = json.loads(text)
+            return VoteResult(
+                voter_id=voter_id,
+                voted_for=data.get("vote", "Unknown"),
+                reasoning=data.get("reasoning", ""),
+            )
+        except json.JSONDecodeError:
+            pass
+
+        # Fallback: try to find JSON object anywhere in text
+        match = re.search(r'\{[^{}]*"vote"\s*:\s*"([^"]+)"[^{}]*\}', text)
+        if match:
+            # Extract just the vote
+            vote_match = re.search(r'"vote"\s*:\s*"(Actor \d+)"', text)
+            reasoning_match = re.search(r'"reasoning"\s*:\s*"([^"]*)"', text)
+            if vote_match:
+                return VoteResult(
+                    voter_id=voter_id,
+                    voted_for=vote_match.group(1),
+                    reasoning=reasoning_match.group(1) if reasoning_match else "",
                 )
-            except (json.JSONDecodeError, KeyError) as e:
-                print(f"Failed to parse vote from {participant.actor_id}: {response}")
-                votes.append(
-                    VoteResult(
-                        voter_id=participant.actor_id,
-                        voted_for="Parse Error",
-                        reasoning=f"Error: {e}",
-                    )
-                )
+
+        # Last resort: look for "Actor N" pattern in response
+        actor_match = re.search(r"Actor (\d+)", text)
+        if actor_match:
+            return VoteResult(
+                voter_id=voter_id,
+                voted_for=f"Actor {actor_match.group(1)}",
+                reasoning=f"(extracted from: {text[:100]}...)",
+            )
+
+        print(f"Failed to parse vote from {voter_id}: {response[:200]}")
+        return VoteResult(
+            voter_id=voter_id,
+            voted_for="Parse Error",
+            reasoning=f"Could not extract vote from response",
+        )
 
         return votes
 

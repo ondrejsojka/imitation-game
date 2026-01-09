@@ -20,9 +20,10 @@ PRESETS = {
         "anthropic/claude-haiku-4.5",
     ],
     "smart": [
-        "google/gemini-3-pro-preview",
-        "x-ai/grok-4.1-fast",
-        "moonshotai/kimi-k2-0905:exacto",
+        "openai/gpt-5.2-chat",
+        "anthropic/claude-haiku-4.5",
+        "gemini-prefill",
+        "human",
     ],
 }
 
@@ -54,13 +55,20 @@ def create_provider(spec: str) -> Provider:
 def cmd_play(args):
     """Play a game with human participant."""
     # Build provider list
-    if args.preset:
-        models = PRESETS.get(args.preset, PRESETS["cheap"])
-        providers = [OpenRouterProvider(model=m) for m in models]
+    preset = args.preset if hasattr(args, "preset") and args.preset else None
+
+    if preset:
+        preset_models = PRESETS.get(preset, PRESETS["cheap"])
+        # Filter out "human" from AI providers as it's added separately
+        ai_models = [m for m in preset_models if m != "human"]
+        providers = [create_provider(m) for m in ai_models]
     elif args.models:
         providers = [create_provider(m) for m in args.models]
     else:
-        providers = [OpenRouterProvider(model=m) for m in PRESETS["cheap"]]
+        # Default to cheap preset without human
+        preset_models = PRESETS["cheap"]
+        ai_models = [m for m in preset_models if m != "human"]
+        providers = [create_provider(m) for m in ai_models]
 
     # Add Gemini prefill if requested
     if args.with_prefill:
@@ -79,7 +87,7 @@ def cmd_play(args):
 
 
 def cmd_demo(args):
-    """Run a demo game with no human (all AI)."""
+    """Run a demo game with no human (all AI), OR with a real human if 'human' is in preset."""
     from .providers.base import Message, Provider
 
     class DummyHuman(Provider):
@@ -95,13 +103,27 @@ def cmd_demo(args):
         def respond(self, messages: list[Message], actor_id: str) -> str:
             return self._inner.respond(messages, actor_id)
 
-    providers = [OpenRouterProvider(model=m) for m in PRESETS["cheap"]]
+    preset = args.preset if hasattr(args, "preset") and args.preset else "cheap"
+    preset_models = PRESETS[preset]
+
+    # Check if "human" is in the preset - if so, use real human
+    has_human = "human" in preset_models
+    ai_models = [m for m in preset_models if m != "human"]
+
+    providers = [create_provider(m) for m in ai_models]
 
     if args.with_prefill:
         providers.append(GeminiPrefillProvider())
 
+    # Use real human or dummy based on preset
+    human = (
+        HumanProvider(args.name if hasattr(args, "name") and args.name else "You")
+        if has_human
+        else DummyHuman()
+    )
+
     game = ImitationGame(
-        providers=providers, human_provider=DummyHuman(), num_turns=args.turns
+        providers=providers, human_provider=human, num_turns=args.turns
     )
 
     topic = args.topic or "Is this performance art?"
@@ -151,9 +173,17 @@ def main():
     play_parser.set_defaults(func=cmd_play)
 
     # Demo command
-    demo_parser = subparsers.add_parser("demo", help="Run demo (no human)")
+    demo_parser = subparsers.add_parser(
+        "demo", help="Run demo (no human, unless 'human' in preset)"
+    )
     demo_parser.add_argument("-t", "--topic", help="Conversation topic")
+    demo_parser.add_argument(
+        "-n", "--name", help="Your display name (if human in preset)"
+    )
     demo_parser.add_argument("--turns", type=int, default=2, help="Number of turns")
+    demo_parser.add_argument(
+        "--preset", choices=list(PRESETS.keys()), help="Model preset"
+    )
     demo_parser.add_argument(
         "--with-prefill", action="store_true", help="Include Gemini prefill"
     )

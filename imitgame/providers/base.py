@@ -41,6 +41,16 @@ class Provider(ABC):
             The response text (without actor prefix - that's added by game logic)
         """
         ...
+    
+    def respond_vote(self, messages: list[Message], actor_id: str) -> str:
+        """Generate a vote response. 
+        
+        Override this for providers that need different behavior for voting
+        (e.g., GeminiPrefill uses normal API for voting, not prefill mode).
+        
+        Default implementation just calls respond().
+        """
+        return self.respond(messages, actor_id)
 
 
 class HumanProvider(Provider):
